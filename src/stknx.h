@@ -13,15 +13,13 @@ typedef void (*knx_frame_callback_t)(const uint8_t *frame, uint8_t len);
 typedef void (*knx_frame_callback_t_2)(const uint8_t byte);
      
 // Khởi tạo: truyền vào callback xử lý telegram
-void knx_init(knx_frame_callback_t_2 cb);
+void knx_init(knx_frame_callback_t cb);
 
-// Hàm gọi trong EXTI IRQ (knx RX edge)
 void knx_exti_irq(void);
-
 // Hàm gọi trong Timer IRQ 104µs (bit sampling)
 void knx_timer_tick(void);
 
-void sendKNXBytes(uint8_t *data, uint8_t len);
+void sendKNXBytes(uint8_t *data);
 
 void enableDWT();
 
