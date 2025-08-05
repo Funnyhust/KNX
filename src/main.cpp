@@ -15,6 +15,8 @@ uint8_t off_frame[9] = {
 // Ví dụ callback xử lý KNX telegram
 void handle_knx_frame(const uint8_t *frame, uint8_t len) {
     DEBUG_SERIAL.write(frame, len);
+    delay(10);
+    attachInterrupt(digitalPinToInterrupt(KNX_TX_PIN), knx_exti_irq, CHANGE);
 }
 // Ví dụ callback xử lý từng byte (nếu cần)
 void handle_knx_frame_2(const uint8_t byte) {
@@ -28,8 +30,6 @@ void setup() {
   timer.setPrescaleFactor(64);     // 72MHz/72 = 1MHz => 1us tick
   timer.setOverflow(104);          // 104µs bit period
   timer.attachInterrupt(knx_timer_tick);
-
-
   // Gắn callback xử lý cạnh EXTI
   attachInterrupt(digitalPinToInterrupt(KNX_TX_PIN), knx_exti_irq, CHANGE);
   
@@ -53,3 +53,6 @@ void loop() {
   // DEBUG_SERIAL.print("Test Serial!\n");
   // DEBUG_SERIAL.println(F_CPU);          
   // DEBUG_SERIAL.println(SystemCoreClock);  
+
+  //Vấn đề : sau khi callback thì vẫn có xung gì đó trên đường truyề n khiến timer vẫn tiếp tục chạy chứ chưa dừng hẳn
+  //cần tìm giải pháp để dừng timer sau khi nhận xong frame,

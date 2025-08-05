@@ -68,10 +68,6 @@ void reset_knx_receiver() {
   total = 0;
   cur_byte = 0;
   bit0 = false;
-  RX_flag = false;
-  for (uint8_t i = 0; i < KNX_MAX_FRAME_LEN; i++) {
-    buf[i] = 0;
-    }
 }
 void knx_timer_tick(void) {
   uint8_t bit = bit0 ? 0 : 1;
@@ -81,7 +77,7 @@ void knx_timer_tick(void) {
   static uint8_t parity_bit = 0;
 
   if (bit_idx == 1) {
-    // Start bit
+      // Start bit
     cur_byte = 0;
     parity_bit = 0;
   } 
@@ -94,46 +90,36 @@ void knx_timer_tick(void) {
   } 
   else if (bit_idx == 10) {
     // Parity bit: kiểm tra bit lẻ
-    if ((parity_bit & 1) != bit) {
-      DEBUG_SERIAL.println("Parity error!");
-      reset_knx_receiver();
-      return;
-    }
+    // if ((parity_bit & 1) == bit) {
+    //   DEBUG_SERIAL.println("Parity error!");
+    //   return;
+    // }
   } 
   else if (bit_idx == 11) {
+    timer.pause(); // Dừng timer sau khi nhận xong byte
+    RX_flag = false; // Đánh dấu đã nhận xong byte
+    bit_idx = 0; // Reset bit index để chuẩn bị cho byte tiếp theo
+    bit0 = false;
     // Stop bit
     if (byte_idx < KNX_MAX_FRAME_LEN) {
       buf[byte_idx++] = cur_byte;
-
       if (byte_idx == 6) {
         total = 6 + (buf[5] & 0x0F) + 1 + 1;
         if (total == 0 || total > KNX_MAX_FRAME_LEN) {
           DEBUG_SERIAL.println("Invalid frame length!");
-          reset_knx_receiver();
           return;
         }
       }
-
       if (total && byte_idx == total) {
+        detachInterrupt(digitalPinToInterrupt(KNX_TX_PIN));
         if (callback_fn) callback_fn(buf, total);
         reset_knx_receiver();
         return;
       }
 
-    } else {
-      DEBUG_SERIAL.println("Frame overflow!");
-      reset_knx_receiver();
-      return;
+    } 
+      else if(byte_idx > total) {
     }
-
-    // ✅ Sau mỗi byte: dừng timer, chờ EXTI đánh thức lại
-    timer.pause();
-    RX_flag = false;
-    bit_idx = 0;
-  } 
-  else if (bit_idx > 11) {
-    DEBUG_SERIAL.println("Unexpected bit index!");
-    reset_knx_receiver();
   }
 }
 
