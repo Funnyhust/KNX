@@ -9,7 +9,7 @@
 #define KNX_BIT0_LOW_US  69*64-32-8
 #define KNX_BIT1_LOW_US  104*64-64
 
-extern HardwareTimer timer;
+HardwareTimer timer(TIM2);
 
 static uint8_t buf[KNX_MAX_FRAME_LEN];
 static uint8_t bit_idx = 0, byte_idx = 0, cur_byte = 0;
@@ -43,6 +43,21 @@ void delay_us_10x(uint32_t t) {
   uint32_t start = DWT->CYCCNT;
   while ((DWT->CYCCNT - start) < cycles);
 }
+
+void knx_init(knx_frame_callback_t cb) {
+  timer.setPrescaleFactor(64);   
+  timer.setOverflow(104);       
+  timer.attachInterrupt(knx_timer_tick);
+  attachInterrupt(digitalPinToInterrupt(KNX_TX_PIN), knx_exti_irq, CHANGE);
+  pinMode(KNX_TX_PIN, INPUT);
+  pinMode(KNX_RX_PIN, OUTPUT);
+  callback_fn = cb;
+  bit_idx = byte_idx = cur_byte = 0;
+  bit0 = false;
+  pulse_start = 0;
+}
+
+
 void knx_exti_irq(void) {
   if(!RX_flag){
       RX_flag = true;
@@ -62,6 +77,7 @@ void knx_exti_irq(void) {
   }
   last = lvl;
 }
+
 void reset_knx_receiver() {
   bit_idx = 0;
   byte_idx = 0;
@@ -69,6 +85,7 @@ void reset_knx_receiver() {
   cur_byte = 0;
   bit0 = false;
 }
+
 void knx_timer_tick(void) {
   uint8_t bit = bit0 ? 0 : 1;
   bit0 = false;
@@ -90,10 +107,9 @@ void knx_timer_tick(void) {
   } 
   else if (bit_idx == 10) {
     // Parity bit: kiểm tra bit lẻ
-    // if ((parity_bit & 1) == bit) {
-    //   DEBUG_SERIAL.println("Parity error!");
-    //   return;
-    // }
+    if ((parity_bit & 1) == bit) {
+      return;
+    }
   } 
   else if (bit_idx == 11) {
     timer.pause(); // Dừng timer sau khi nhận xong byte
@@ -123,14 +139,6 @@ void knx_timer_tick(void) {
   }
 }
 
-
-void knx_init(knx_frame_callback_t cb) {
-  callback_fn = cb;
-  bit_idx = byte_idx = cur_byte = 0;
-  bit0 = false;
-  pulse_start = 0;
-}
-
 static void sendKNXBits(uint8_t bitVal){
           if (bitVal == 0) {
            GPIOA->BSRR = (1 << 10); 
@@ -143,9 +151,10 @@ static void sendKNXBits(uint8_t bitVal){
         }
 }
 
+
 void sendKNXBytes(uint8_t *data) {
   uint8_t bit_sum= 0;
-  uint8_t len = 6 + data[5]&0x0F + 1 + 1; // Lấy độ dài payload từ byte thứ 6
+  uint8_t len = 6 + (data[5]&0x0F) + 1 + 1; // Lấy độ dài payload từ byte thứ 6
   for (uint8_t i = 0; i < len; i++) {
     uint8_t byteToSend = data[i];
     sendKNXBits(0);
@@ -161,18 +170,3 @@ void sendKNXBytes(uint8_t *data) {
     sendKNXBits(1);
   }
 }
-
-
-
-  ///////////////////
-  
-
-
-        //    digitalWrite(KNX_RX_PIN, HIGH);
-        //    delay_us_10x(35*64-64*3+8);
-        //    digitalWrite(KNX_RX_PIN, LOW);
-        //    delay_us_10x(69*64-32); // tổng = 104
-        // } else {
-        //    digitalWrite(KNX_RX_PIN, LOW);
-        //    delay_us_10x(104*64-64*3);
-        // }

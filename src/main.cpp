@@ -1,8 +1,9 @@
 #include <Arduino.h>
 #include "stknx.h"
 
-HardwareTimer timer(TIM2);
-// Frame ON đã capture được trước đó
+#define UART_RX_BUFFER_SIZE 23
+uint8_t uart_rx_buf[UART_RX_BUFFER_SIZE];
+
 uint8_t on_frame[9] = {
   0xBC, 0x12, 0x01, 0x00, 0x04, 0xE1,  0x00, 0x80, 0x35
 };
@@ -24,31 +25,71 @@ void handle_knx_frame_2(const uint8_t byte) {
 }
 
 void setup() {
-  // Serial2.setRx(PB3);  // RX chân PB11
-  // Serial2.setTx(PB2);  // TX chân PB10
   DEBUG_SERIAL.begin(19200,SERIAL_8E1);
-  timer.setPrescaleFactor(64);     // 72MHz/72 = 1MHz => 1us tick
-  timer.setOverflow(104);          // 104µs bit period
-  timer.attachInterrupt(knx_timer_tick);
-  // Gắn callback xử lý cạnh EXTI
-  attachInterrupt(digitalPinToInterrupt(KNX_TX_PIN), knx_exti_irq, CHANGE);
-  
-  // Cấu hình chân (PA10) làm input EXTI cho KNX_RX
-  pinMode(KNX_TX_PIN, INPUT);
-  pinMode(KNX_RX_PIN, OUTPUT);
-
   knx_init(handle_knx_frame);
-  // knx_init(handle_knx_frame); // Nếu bạn muốn nhận toàn bộ frame
-
   enableDWT();
-  // Bật DWT để sử dụng hàm delay_us_10x
  }
-void loop() {
-  // if (read_uart_frame()) {
-  //   sendKNXBytes(uart_rx_buf);
-  // }
-  // delay(2000);
+
+bool read_uart_frame() {
+  static uint8_t index = 0;
+  static uint8_t total = 0;
+
+  while (DEBUG_SERIAL.available()) {
+    uint8_t byte = DEBUG_SERIAL.read();
+    if (index < UART_RX_BUFFER_SIZE) {
+      uart_rx_buf[index++] = byte;
+    } else {
+      // Tràn buffer, reset lại
+      index = 0;
+      total = 0;
+      return false;
+    }
+
+    if (index == 6) {
+      total = 6 + (uart_rx_buf[5] & 0x0F) + 1 + 1;
+      if (total > UART_RX_BUFFER_SIZE) {
+        index = 0;
+        total = 0;
+        return false;
+      }
+    }
+
+    if (total > 0 && index >= total) {
+      // Có thể kiểm tra checksum ở đây nếu muốn
+      index = 0;
+      total = 0;
+      return true;
+    }
+  }
+  return false;
 }
+
+void loop() {
+  if (read_uart_frame()) {
+    sendKNXBytes(uart_rx_buf);  // Gửi ra KNX bus
+    uart_rx_buf[0] = 0; // Reset buffer sau khi gửi
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   // DEBUG_SERIAL.print("Test Serial!\n");
   // DEBUG_SERIAL.println(F_CPU);          
