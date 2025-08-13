@@ -7,13 +7,11 @@ uint8_t uart_rx_buf[UART_RX_BUFFER_SIZE];
 uint8_t on_frame[9] = {
   0xBC, 0x12, 0x01, 0x00, 0x04, 0xE1,  0x00, 0x80, 0x35
 };
-
-// Frame OFF tương ứng (ví dụ bạn capture riêng)
 uint8_t off_frame[9] = {
   0xBC, 0x12, 0x01, 0x00, 0x04, 0xE1,  0x00, 0x81, 0x34
 };
 
-// Ví dụ callback xử lý KNX telegram
+// Callback xử lý KNX telegram
 void handle_knx_frame(const uint8_t *frame, uint8_t len) {
     DEBUG_SERIAL.write(frame, len);
     delay(10);
@@ -25,7 +23,7 @@ void handle_knx_frame_2(const uint8_t byte) {
 }
 
 void setup() {
-  DEBUG_SERIAL.begin(19200,SERIAL_8E1);
+  DEBUG_SERIAL.begin(19200,SERIAL_8E1); //paryty is even
   knx_init(handle_knx_frame);
   enableDWT();
  }
@@ -73,27 +71,3 @@ void loop() {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  // DEBUG_SERIAL.print("Test Serial!\n");
-  // DEBUG_SERIAL.println(F_CPU);          
-  // DEBUG_SERIAL.println(SystemCoreClock);  
-
-  //Vấn đề : sau khi callback thì vẫn có xung gì đó trên đường truyề n khiến timer vẫn tiếp tục chạy chứ chưa dừng hẳn
-  //cần tìm giải pháp để dừng timer sau khi nhận xong frame,
