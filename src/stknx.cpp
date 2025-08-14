@@ -5,6 +5,9 @@
 #define BIT0_MAX_US 45
 #define KNX_MAX_FRAME_LEN 23
 
+//#define KNX_MODE_FRAME   1
+#define KNX_MODE_BYTE  1   // Bật cái này nếu muốn xử lý từng byte
+
 #define KNX_BIT0_HIGH_US 35*64-64-16
 #define KNX_BIT0_LOW_US  69*64-32-8
 #define KNX_BIT1_LOW_US  104*64-64
@@ -16,8 +19,7 @@ static uint8_t bit_idx = 0, byte_idx = 0, cur_byte = 0;
 static volatile bool bit0 = false;
 static uint32_t pulse_start = 0;
 static knx_frame_callback_t callback_fn = nullptr;
-static knx_frame_callback_t_2 callback_fn_2 = nullptr;
-static volatile uint8_t parity_bit = false;
+static volatile uint8_t parity_bit = 0;
 
 
 static volatile bool RX_flag=false;
@@ -85,16 +87,16 @@ void reset_knx_receiver() {
   cur_byte = 0;
   bit0 = false;
 }
-
 void knx_timer_tick(void) {
   uint8_t bit = bit0 ? 0 : 1;
   bit0 = false;
   bit_idx++;
 
+#if defined(KNX_MODE_FRAME)
+
   static uint8_t parity_bit = 0;
 
   if (bit_idx == 1) {
-      // Start bit
     cur_byte = 0;
     parity_bit = 0;
   } 
@@ -106,17 +108,16 @@ void knx_timer_tick(void) {
     }
   } 
   else if (bit_idx == 10) {
-    // Parity bit: kiểm tra bit lẻ
     if ((parity_bit & 1) == bit) {
       return;
     }
   } 
   else if (bit_idx == 11) {
-    timer.pause(); // Dừng timer sau khi nhận xong byte
-    RX_flag = false; // Đánh dấu đã nhận xong byte
-    bit_idx = 0; // Reset bit index để chuẩn bị cho byte tiếp theo
+    timer.pause();
+    RX_flag = false;
+    bit_idx = 0;
     bit0 = false;
-    // Stop bit
+
     if (byte_idx < KNX_MAX_FRAME_LEN) {
       buf[byte_idx++] = cur_byte;
       if (byte_idx == 6) {
@@ -132,13 +133,37 @@ void knx_timer_tick(void) {
         reset_knx_receiver();
         return;
       }
-
-    } 
-      else if(byte_idx > total) {
     }
   }
-}
 
+#elif defined(KNX_MODE_BYTE)
+  if (bit_idx == 1) {
+    cur_byte = 0;
+    parity_bit = 0;
+  } 
+  else if (bit_idx >= 2 && bit_idx <= 9) {
+    cur_byte >>= 1;
+    if (bit) {
+      cur_byte |= 0x80;
+      parity_bit++;
+    }
+  } 
+    else if (bit_idx == 10) {
+    if ((parity_bit & 1) == bit) {
+      return;
+    }
+  } 
+  if (bit_idx == 11 && bit == 1) {
+    if (callback_fn) callback_fn(cur_byte);
+    cur_byte = 0;
+    bit_idx = 0;
+    byte_idx++;
+    timer.pause();
+    RX_flag = false;
+  }
+
+#endif
+}
 static void sendKNXBits(uint8_t bitVal){
           if (bitVal == 0) {
            GPIOA->BSRR = (1 << 10); 

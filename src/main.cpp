@@ -4,23 +4,17 @@
 #define UART_RX_BUFFER_SIZE 23
 uint8_t uart_rx_buf[UART_RX_BUFFER_SIZE];
 
-uint8_t on_frame[9] = {
-  0xBC, 0x12, 0x01, 0x00, 0x04, 0xE1,  0x00, 0x80, 0x35
-};
-uint8_t off_frame[9] = {
-  0xBC, 0x12, 0x01, 0x00, 0x04, 0xE1,  0x00, 0x81, 0x34
-};
-
-// Callback xử lý KNX telegram
+#if defined(KNX_MODE_FRAME)
 void handle_knx_frame(const uint8_t *frame, uint8_t len) {
     DEBUG_SERIAL.write(frame, len);
     delay(10);
     attachInterrupt(digitalPinToInterrupt(KNX_TX_PIN), knx_exti_irq, CHANGE);
 }
-// Ví dụ callback xử lý từng byte (nếu cần)
-void handle_knx_frame_2(const uint8_t byte) {
-  DEBUG_SERIAL.printf("%02X ", byte);
+#elif defined(KNX_MODE_BYTE)
+void handle_knx_frame(const uint8_t byte) {
+  DEBUG_SERIAL.write(byte);
 }
+#endif
 
 void setup() {
   DEBUG_SERIAL.begin(19200,SERIAL_8E1); //paryty is even
